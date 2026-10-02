@@ -1,60 +1,76 @@
 import streamlit as st 
 import pandas as pd
-from ydata_profiling import ProfileReport
+import sweetviz as sv
 import streamlit.components.v1 as components
 import sys
 import os
 
-st.set_page_config(page_title="Data Profiler",layout="wide", page_icon="pageicon.webp")
+st.set_page_config(page_title="Data Profiler", layout="wide", page_icon="pageicon.webp")
 
-#we define a function in a way to identify the extension of the file and verify it
+# Validate extension
 def validate_file(file):
-    filename=file.name
-    name,ext=os.path.splitext(filename)
-    if ext in (".csv",".xlsx"):
+    filename = file.name
+    name, ext = os.path.splitext(filename)
+    if ext in (".csv", ".xlsx"):
         return ext
     else:
         return False
+
+# File size
 def file_size(file):
-    size_bytes=sys.getsizeof(file)
-    size_mb=size_bytes/(1024**2)
+    size_bytes = sys.getsizeof(file)
+    size_mb = size_bytes / (1024**2)
     return size_mb
 
-#Creation of the sidebar
+# Sidebar
 with st.sidebar:
-    upload_file=st.file_uploader("Upload a .csv, .xlsx files not exceeding 10 MB")
-    #we add the possibility for the user to choose the color and o minimize the large amount of output in a smaller view
-    st.write("Models of Operatons")
-    minimal=st.checkbox("Check if you want a minimal report")
-    displaymode=st.radio("Display color mode:", options=("Dark", "Orange"))
-    if displaymode == "Orange":
-        pr1 = ["#ff6f00"]
-    elif displaymode == "Dark":
-        pr1 = ["#141414"]
+    upload_file = st.file_uploader("Upload a .csv or .xlsx file (max 10 MB)")
+    st.write("Models of Operations")
+    minimal = st.checkbox("Check if you want a minimal report")
+    displaymode = st.radio("Display color mode:", options=("Dark", "Orange"))
 
+    if displaymode == "Orange":
+        pr1 = "#ff6f00"
+    elif displaymode == "Dark":
+        pr1 = "#141414"
+
+# Main logic
 if upload_file is not None:
-    ext=validate_file(upload_file)
-    if ext: 
-        filesize=file_size(upload_file)
+    ext = validate_file(upload_file)
+    if ext:
+        filesize = file_size(upload_file)
         if filesize <= 10:
-            if ext==".csv":
-                df=pd.read_csv(upload_file)
+            if ext == ".csv":
+                df = pd.read_csv(upload_file)
             else:
-                df=pd.ExcelFile(upload_file)
-                sheet_tuple=tuple(df.sheet_names)
-                sheet_name=st.sidebar.selectbox("Select the sheet", sheet_tuple)
-                df= df.parse(sheet_name)
-    
+                excel_file = pd.ExcelFile(upload_file)
+                sheet_tuple = tuple(excel_file.sheet_names)
+                sheet_name = st.sidebar.selectbox("Select the sheet", sheet_tuple)
+                df = excel_file.parse(sheet_name)
+
             st.dataframe(df.head())
-            #generate report
-            with st.spinner("Generating report"):
-                pr=ProfileReport(df , minimal=minimal)
-            pr.config.html.style.primary_colors = pr1
-            st.iframe(pr.to_html(),height=1200)
-        else: 
-            st.error("Maximum allowed filesize is 10 MB. But recieved is {filsesize} MB ")    
+
+            # Generate Sweetviz report
+            with st.spinner("Generating report..."):
+                report = sv.analyze(df)
+
+                # Apply minimal mode
+                if minimal:
+                    report = sv.analyze(df, feat_cfg=sv.FeatureConfig(skip="ALL"))
+
+                # Generate HTML
+                report_path = "sweetviz_report.html"
+                report.show_html(report_path, open_browser=False)
+
+            # Display report inside Streamlit
+            with open(report_path, "r", encoding="utf-8") as f:
+                html_report = f.read()
+
+            components.html(html_report, height=1200, scrolling=True)
+
+        else:
+            st.error(f"Maximum allowed filesize is 10 MB. Received: {filesize:.2f} MB")
     else:
-        
         st.error("Kindly upload csv or xlsx files")
 else:
     st.title("Data Profiler")
