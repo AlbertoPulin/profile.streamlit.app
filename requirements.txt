@@ -1,0 +1,9 @@
+numpy
+pandas
+scipy
+streamlit
+matplotlib
+ydata-profiling
+openpyxl
+
+
